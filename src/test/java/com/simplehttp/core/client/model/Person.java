@@ -1,4 +1,4 @@
-package com.simplehttp.httpclient.spring;
+package com.simplehttp.core.client.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;

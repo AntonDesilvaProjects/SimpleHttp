@@ -1,15 +1,17 @@
 package com.simplehttp.core.client;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.tomakehurst.wiremock.junit.WireMockRule;
 import com.simplehttp.core.annotation.client.SimpleHttpClient;
 import com.simplehttp.core.annotation.http.PathParam;
 import com.simplehttp.core.annotation.http.RequestAttribute;
 import com.simplehttp.core.annotation.http.RequestBody;
 import com.simplehttp.core.client.http.HttpMethod;
+import com.simplehttp.core.client.model.Person;
 import com.simplehttp.core.client.model.Response;
 import com.simplehttp.core.exception.SimpleHttpException;
-import com.simplehttp.httpclient.spring.Person;
 import com.simplehttp.httpclient.spring.RestTemplateHttpClient;
+import lombok.Data;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;

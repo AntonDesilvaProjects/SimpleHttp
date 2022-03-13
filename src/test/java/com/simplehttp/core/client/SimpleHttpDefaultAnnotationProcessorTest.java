@@ -7,11 +7,7 @@ import com.simplehttp.core.annotation.SimpleHttpDefaultAnnotationProcessor;
 import com.simplehttp.core.annotation.client.SimpleHttpClient;
 import com.simplehttp.core.annotation.http.*;
 import com.simplehttp.core.client.http.HttpMethod;
-import com.simplehttp.core.client.model.ClientMetadata;
-import com.simplehttp.core.client.model.ClientMethodMetaData;
-import com.simplehttp.core.client.model.NamedParameterMetaData;
-import com.simplehttp.core.client.model.ParameterMetaData;
-import com.simplehttp.httpclient.spring.Person;
+import com.simplehttp.core.client.model.*;
 import org.junit.Test;
 
 import java.util.List;
