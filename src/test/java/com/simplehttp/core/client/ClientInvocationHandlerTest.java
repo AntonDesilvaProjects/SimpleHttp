@@ -8,8 +8,8 @@ import com.simplehttp.core.annotation.http.RequestBody;
 import com.simplehttp.core.client.http.HttpMethod;
 import com.simplehttp.core.client.model.Response;
 import com.simplehttp.core.exception.SimpleHttpException;
-import com.simplehttp.provider.spring.Person;
-import com.simplehttp.provider.spring.RestTemplateClient;
+import com.simplehttp.httpclient.spring.Person;
+import com.simplehttp.httpclient.spring.RestTemplateHttpClient;
 import org.junit.Rule;
 import org.junit.Test;
 import org.springframework.http.HttpStatus;
@@ -52,7 +52,7 @@ public class ClientInvocationHandlerTest {
             List<Person> getEntities();
         }
 
-        TestClient client = new ClientBuilder().withHttpClient(new RestTemplateClient())
+        TestClient client = new ClientBuilder().withHttpClient(new RestTemplateHttpClient())
                 .buildClient(TestClient.class);
         List<Person> personList = client.getEntities();
         assertThat(personList).isNotNull();
@@ -83,7 +83,7 @@ public class ClientInvocationHandlerTest {
             List<Person> getEntities();
         }
 
-        TestClient client = new ClientBuilder().withHttpClient(new RestTemplateClient())
+        TestClient client = new ClientBuilder().withHttpClient(new RestTemplateHttpClient())
                 .buildClient(TestClient.class);
         List<Person> personList = client.getEntities();
         assertThat(personList).isNotNull();
@@ -157,7 +157,5 @@ public class ClientInvocationHandlerTest {
         peopleRepository.delete(updated.get_id());
         Person deleted = peopleRepository.get(fetched.get_id());
         assertThat(deleted).isNull();
-
     }
-
 }

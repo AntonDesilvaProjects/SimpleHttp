@@ -1,4 +1,4 @@
-package com.simplehttp.provider.spring;
+package com.simplehttp.httpclient.spring;
 
 import java.util.List;
 

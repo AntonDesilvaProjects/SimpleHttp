@@ -11,7 +11,7 @@ import com.simplehttp.core.client.model.ClientMetadata;
 import com.simplehttp.core.client.model.ClientMethodMetaData;
 import com.simplehttp.core.client.model.NamedParameterMetaData;
 import com.simplehttp.core.client.model.ParameterMetaData;
-import com.simplehttp.provider.spring.Person;
+import com.simplehttp.httpclient.spring.Person;
 import org.junit.Test;
 
 import java.util.List;

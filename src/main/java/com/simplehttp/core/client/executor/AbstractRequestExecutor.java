@@ -32,7 +32,7 @@ public abstract class AbstractRequestExecutor implements RequestExecutor {
     public abstract Response executeRequest(Request request, HttpClient httpClient, List<ErrorHandler> errorHandlers);
 
     /**
-     * @inheritDoc
+     * {@inheritDoc}
      */
     @Override
     public Object execute(Request request,

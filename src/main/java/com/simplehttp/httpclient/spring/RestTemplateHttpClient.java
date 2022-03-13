@@ -1,4 +1,4 @@
-package com.simplehttp.provider.spring;
+package com.simplehttp.httpclient.spring;
 
 import com.simplehttp.core.client.http.HttpMultiValueMap;
 import com.simplehttp.core.client.HttpClient;
@@ -13,11 +13,11 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.util.List;
 import java.util.Optional;
 
-public class RestTemplateClient implements HttpClient {
+public class RestTemplateHttpClient implements HttpClient {
 
     private final RestTemplate restTemplate;
 
-    public RestTemplateClient() {
+    public RestTemplateHttpClient() {
         this.restTemplate = new RestTemplate();
     }
 
@@ -66,7 +66,7 @@ public class RestTemplateClient implements HttpClient {
                 .headers(new HttpMultiValueMap())
                 .queryParams(new HttpMultiValueMap())
                 .build();
-        RestTemplateClient client = new RestTemplateClient();
+        RestTemplateHttpClient client = new RestTemplateHttpClient();
         Response response = client.execute(request);
         System.out.println(response);
     }

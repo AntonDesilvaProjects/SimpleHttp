@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 public class SimpleHttpDefaultAnnotationProcessor implements AnnotationProcessor {
 
     /**
-     * @inheritDoc
+     * {@inheritDoc}
      */
     public ClientMetadata extractClientMetadata(final Class<?> target) {
         final ClientMetadata.ClientMetadataBuilder clientMetadataBuilder = ClientMetadata.builder();

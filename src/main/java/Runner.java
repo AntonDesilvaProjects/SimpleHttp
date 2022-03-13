@@ -4,8 +4,7 @@ import com.simplehttp.core.annotation.http.RequestAttribute;
 import com.simplehttp.core.annotation.http.RequestBody;
 import com.simplehttp.core.client.ClientBuilder;
 import com.simplehttp.core.client.http.HttpMethod;
-import com.simplehttp.core.exception.SimpleHttpException;
-import com.simplehttp.provider.spring.Person;
+import com.simplehttp.httpclient.spring.Person;
 import org.springframework.web.client.RestTemplate;
 
 import java.lang.reflect.InvocationHandler;

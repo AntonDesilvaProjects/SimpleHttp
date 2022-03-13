@@ -1,4 +1,4 @@
-import com.simplehttp.provider.spring.Person;
+import com.simplehttp.httpclient.spring.Person;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.LinkedHashMap;

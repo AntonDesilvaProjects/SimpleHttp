@@ -1,7 +1,7 @@
 import com.simplehttp.core.annotation.client.SimpleHttpClient;
 import com.simplehttp.core.annotation.http.*;
 import com.simplehttp.core.client.http.HttpMethod;
-import com.simplehttp.provider.spring.Person;
+import com.simplehttp.httpclient.spring.Person;
 
 import java.util.LinkedHashMap;
 import java.util.List;
