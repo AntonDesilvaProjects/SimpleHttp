@@ -215,27 +215,4 @@ public class ClientInvocationHandler implements InvocationHandler {
         }
         return fullUrl;
     }
-
-    public static void main(String... args) {
-        Request request = Request.builder().url("url").build();
-        List<RequestInterceptor> requestInterceptors = List.of(
-                (r, c) -> {
-                    System.out.println("Inside First. Current URL: " + r.getUrl());
-                    r.setUrl(r.getUrl() + "1"); return r;
-                    },
-                (r, c) -> {
-                    System.out.println("Inside Second. Current URL: " + r.getUrl());
-                    r.setUrl(r.getUrl() + "2"); return r;
-                    },
-                (r, c) -> {
-                    System.out.println("Inside Third. Current URL: " + r.getUrl());
-                    r.setUrl(r.getUrl() + "3"); return r;
-                }
-        );
-        Request r = requestInterceptors.stream().reduce(request,
-                (currentRequest, executor) -> executor.process(currentRequest, null),
-                (currentRequest, updatedRequest) -> updatedRequest);
-        System.out.println(r);
-    }
-
 }

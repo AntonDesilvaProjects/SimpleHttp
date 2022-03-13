@@ -10,6 +10,7 @@ import com.simplehttp.core.client.model.Response;
 import com.simplehttp.core.exception.SimpleHttpException;
 import com.simplehttp.httpclient.spring.Person;
 import com.simplehttp.httpclient.spring.RestTemplateHttpClient;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.springframework.http.HttpStatus;
@@ -90,6 +91,7 @@ public class ClientInvocationHandlerTest {
     }
 
     @Test
+    @Ignore
     public void crudTest() {
         @SimpleHttpClient(host = "https://crudcrud.com/api/1295f14b76a74ec08e94eda42c7c80a0/person")
         interface PeopleRepository {

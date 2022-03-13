@@ -28,7 +28,7 @@ public class ClientRequestTest {
         interface TestClient {
             void nonHttpMethod();
         }
-        TestClient testClient = new ClientBuilder().withHttpClient(null).buildClient(TestClient.class);
+        TestClient testClient = new ClientBuilder().buildClient(TestClient.class);
         assertThatThrownBy(testClient::nonHttpMethod)
                 .isInstanceOf(UnsupportedOperationException.class)
                 .hasMessage("The method 'nonHttpMethod' is not decorated for Simple HTTP client request");
@@ -140,7 +140,7 @@ public class ClientRequestTest {
             @RequestAttribute("/{entityType}/{entityId}")
             void getEntity(@PathParam("entityType") String type, @PathParam("entityId") int id);
         }
-        TestClient testClient = new ClientBuilder().withHttpClient(null).buildClient(TestClient.class);
+        TestClient testClient = new ClientBuilder().buildClient(TestClient.class);
         assertThatThrownBy(() -> testClient.getEntity(null, 12))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("The value for path parameter 'entityType' is empty");
