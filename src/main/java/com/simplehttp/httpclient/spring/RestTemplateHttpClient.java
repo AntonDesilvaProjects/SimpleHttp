@@ -13,6 +13,9 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * An HttpClient implementation using the Spring's RestTemplate.
+ */
 public class RestTemplateHttpClient implements HttpClient {
 
     private final RestTemplate restTemplate;
@@ -57,17 +60,5 @@ public class RestTemplateHttpClient implements HttpClient {
             }
         }
         return builder.toUriString();
-    }
-
-    public static void main(String... args) {
-        Request request = Request.builder()
-                .url("https://webhook.site/67835d52-2f92-4a1a-a1b2-667ad708c0a4")
-                .httpMethod(com.simplehttp.core.client.http.HttpMethod.GET)
-                .headers(new HttpMultiValueMap())
-                .queryParams(new HttpMultiValueMap())
-                .build();
-        RestTemplateHttpClient client = new RestTemplateHttpClient();
-        Response response = client.execute(request);
-        System.out.println(response);
     }
 }
