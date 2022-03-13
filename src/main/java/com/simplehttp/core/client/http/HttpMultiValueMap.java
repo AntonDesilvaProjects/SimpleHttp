@@ -1,4 +1,4 @@
-package com.simplehttp.core;
+package com.simplehttp.core.client.http;
 
 import java.util.*;
 
@@ -41,5 +41,18 @@ public class HttpMultiValueMap {
                 this.add(key, null);
             }
         });
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        HttpMultiValueMap that = (HttpMultiValueMap) o;
+        return Objects.equals(nameToValuesMap, that.nameToValuesMap);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nameToValuesMap);
     }
 }

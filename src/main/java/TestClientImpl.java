@@ -1,3 +1,4 @@
+import com.simplehttp.provider.spring.Person;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.LinkedHashMap;
@@ -26,5 +27,10 @@ public class TestClientImpl implements TestClient {
     @Override
     public String testAllV2(String token, Map<String, String> dynamicHeaders, String page, Map<String, String> dynamicQueryParams, String accountId, List<String> payload, String s) {
         return null;
+    }
+
+    @Override
+    public void getPeople(Person p) {
+        //return null;
     }
 }

@@ -1,83 +1,96 @@
 package com.simplehttp.core.client;
 
-import com.simplehttp.core.HttpMultiValueMap;
-import com.simplehttp.core.annotation.http.QueryParam;
+import com.simplehttp.core.client.executor.*;
+import com.simplehttp.core.client.http.HttpMultiValueMap;
 import com.simplehttp.core.client.model.*;
 import com.simplehttp.utils.Utils;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.*;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static com.simplehttp.utils.Utils.isPathFragment;
-
 public class ClientInvocationHandler implements InvocationHandler {
 
-    private final Client client;
+    private final HttpClient httpClient;
     private final ClientMetadata clientMetadata;
+    private final List<RequestInterceptor> requestInterceptors;
+    private final List<ResponseInterceptor> responseInterceptors;
+    private final List<ErrorHandler> errorHandlers;
+
+    private final RequestExecutor requestHandler;
 
     /**
      *
-     * @param client client that will be used to execute request
+     * @param httpClient client that will be used to execute request
      * @param clientMetadata request meta data map which has info to build request objects
      */
-    public ClientInvocationHandler(Client client, ClientMetadata clientMetadata) {
-        this.client = client;
+    public ClientInvocationHandler(HttpClient httpClient,
+                                   RequestExecutor requestHandler,
+                                   ClientMetadata clientMetadata,
+                                   List<RequestInterceptor> requestInterceptorList,
+                                   List<ResponseInterceptor> postRequestExecutorList,
+                                   List<ErrorHandler> errorHandlers) {
+        this.httpClient = httpClient;
         this.clientMetadata = clientMetadata;
+        this.requestHandler = requestHandler;
+        this.requestInterceptors = requestInterceptorList;
+        this.responseInterceptors = postRequestExecutorList;
+        this.errorHandlers = errorHandlers;
     }
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         final String methodName = method.getName();
-        final ClientMethodMetaData requestTemplate = clientMetadata.getMethodNameToRequestTemplate().get(methodName);
-        if (requestTemplate == null) {
-            throw new UnsupportedOperationException(String.format("The method %s is not valid Simple HTTP client method", methodName));
-        }
+        final ClientMethodMetaData requestTemplate = Optional.ofNullable(
+                clientMetadata.getMethodNameToRequestTemplate().get(methodName)).orElseThrow(
+                        () -> new UnsupportedOperationException(String.format(
+                                "The method '%s' is not decorated for Simple HTTP client request", methodName)));
+
         // combine the parameter metadata with the actual arguments
-        List<ParameterInfo> parameterInfoList = IntStream.range(0, requestTemplate.getParameterMetaDataList().size())
+        final List<ParameterInfo> parameters = IntStream.range(0, requestTemplate.getParameterMetaDataList().size())
                 .mapToObj(i -> ParameterInfo.builder()
                         .value(args[i])
                         .parameterMetaData(requestTemplate.getParameterMetaDataList().get(i))
                         .build())
                 .collect(Collectors.toList());
-        // group the parameter info list based on parameter type
-        Map<ParameterMetaData.Type, List<ParameterInfo>> typeToParamInfo = parameterInfoList.stream()
-                .collect(Collectors.groupingBy(paramInfo -> paramInfo.getParameterMetaData().getType()));
-
-        // combine the actual arguments with parameter metadata
-        // do group by parameter type( HTTP_HEADER -> param_1, param_2)
 
         // build the request
-        Request request = buildRequest(requestTemplate, typeToParamInfo);
-        Response response;
-        try {
-            response = client.execute(request);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        final Request request = buildRequest(requestTemplate, method, parameters);
 
-        return response.getParsedResponse();
+        return requestHandler.execute(request, httpClient, requestInterceptors, responseInterceptors, errorHandlers);
     }
 
     private Request buildRequest(ClientMethodMetaData requestMetaData,
-                                 Map<ParameterMetaData.Type,
-                                 List<ParameterInfo>> parameterInfo) {
+                                 Method method,
+                                 List<ParameterInfo> parameters) {
 
-        final Request.RequestBuilder requestBuilder = Request.builder();
+        // group the parameter info list based on parameter type(e.g. HTTP_HEADER -> param_1, param_2)
+        final Map<ParameterMetaData.Type, List<ParameterInfo>> parameterInfo = parameters.stream()
+                .collect(Collectors.groupingBy(paramInfo ->
+                        paramInfo.getParameterMetaData().getType()));
+
+        final Request.RequestBuilder requestBuilder = Request.builder()
+                .method(method)
+                .parameters(parameters);
+
         final String url = getUrl(requestMetaData, parameterInfo);
         requestBuilder.url(url);
         requestBuilder.httpMethod(requestMetaData.getHttpMethod());
         // http headers
-        final HttpMultiValueMap headers = getNamedParams(requestMetaData, parameterInfo, ParameterMetaData.Type.HTTP_HEADER);
+        final HttpMultiValueMap headers = getNamedParams(requestMetaData, parameterInfo,
+                ParameterMetaData.Type.HTTP_HEADER);
         requestBuilder.headers(headers);
         // query parameters
-        final HttpMultiValueMap queryParams = getNamedParams(requestMetaData, parameterInfo, ParameterMetaData.Type.QUERY_PARAM);
+        final HttpMultiValueMap queryParams = getNamedParams(requestMetaData, parameterInfo,
+                ParameterMetaData.Type.QUERY_PARAM);
         requestBuilder.queryParams(queryParams);
+
+        // request body
+        final Object requestBody = getRequestBody(requestMetaData, parameterInfo);
+        requestBuilder.body(requestBody);
+
         requestBuilder.responseType(requestMetaData.getResponseType());
 
         return requestBuilder.build();
@@ -86,12 +99,16 @@ public class ClientInvocationHandler implements InvocationHandler {
     /**
      * Extracts the URL from the request metadata. Following sequence is used to determine the final URL of the
      * request:
-     * 1. If there is a URL specified as a method parameter, use that
-     * 2. If there is a URL specified as part of the RequestAttribute annotation, use that
-     * 3. If none of the above, use just the client's path
-     *
+     * <ol>
+     *  <li>If there is a URL specified as a method parameter, use that</li>
+     *  <li>If there is a URL specified as part of the @RequestAttribute annotation, use that</li>
+     *  <li>If none of the above, use the client's path from @SimpleHttpClient</li>
+     *</ol>
+     * For 1 & 2, if the specified value is a path fragment, then append to the client's path. Also replaces path
+     * parameters with actual values.
      */
-    private String getUrl(ClientMethodMetaData requestMetaData, Map<ParameterMetaData.Type, List<ParameterInfo>> typeToParam) {
+    private String getUrl(ClientMethodMetaData requestMetaData,
+                          Map<ParameterMetaData.Type, List<ParameterInfo>> typeToParam) {
         // build the URL - we can get the URL in 3 ways
         String fullUrl = clientMetadata.getHost();
 
@@ -99,83 +116,30 @@ public class ClientInvocationHandler implements InvocationHandler {
         List<ParameterInfo> paramsWithUrl = typeToParam.get(ParameterMetaData.Type.URL);
         if (Utils.isNotEmpty(paramsWithUrl) && paramsWithUrl.get(0).getValue() != null) {
             final Object rawUrlArgument = paramsWithUrl.get(0).getValue();
-            final String urlArgString = rawUrlArgument instanceof String ? (String) rawUrlArgument :
-                    rawUrlArgument.toString();
-            fullUrl = joinUrl(fullUrl, urlArgString);
+            fullUrl = joinUrl(fullUrl, Utils.stringify(rawUrlArgument));
         } else if (Utils.isNotEmpty(requestMetaData.getUrl())) {
             fullUrl = joinUrl(fullUrl, requestMetaData.getUrl());
         }
 
         // now we need to get the path variables and replace the placeholders in the URL
-        List<ParameterInfo> pathVariableParams = typeToParam.get(ParameterMetaData.Type.PATH_PARAM);
+        List<ParameterInfo> pathVariableParams = Optional.ofNullable(typeToParam.get(ParameterMetaData.Type.PATH_PARAM))
+                .orElse(List.of());
         for (ParameterInfo parameterInfo: pathVariableParams) {
-            NamedParameterMetaData queryParam = (NamedParameterMetaData) parameterInfo.getParameterMetaData();
-            String name = queryParam.getName();
-            Object rawValue = parameterInfo.getValue();
-            String value = rawValue instanceof String ? (String) rawValue : rawValue.toString();
-            fullUrl = fullUrl.replaceAll("\\{\\s*" + name + "\\s*\\}", value);
+            NamedParameterMetaData pathVariable = (NamedParameterMetaData) parameterInfo.getParameterMetaData();
+            String pathVariableName = pathVariable.getName();
+            String value = Utils.stringify(parameterInfo.getValue());
+            if (Utils.isEmpty(value)) {
+                throw new IllegalArgumentException(String.format("The value for path parameter '%s' is empty",
+                        pathVariableName));
+            }
+            fullUrl = fullUrl.replaceAll("\\{\\s*" + pathVariableName + "\\s*\\}", value);
         }
-
-        if (Utils.isPathFragment(fullUrl)) { // TODO: Needs better url validation here!
-            throw new IllegalArgumentException("Unable to find valid request URL. Found: " + fullUrl);
-        }
-
+        // TODO: Add some URL validation on this
         return fullUrl;
     }
 
     /**
-     * Extracts the headers from the request method
-     * @param requestMetaData
-     * @param typeToParam
-     * @return
-     */
-    private HttpMultiValueMap getHeaders(ClientMethodMetaData requestMetaData, Map<ParameterMetaData.Type, List<ParameterInfo>> typeToParam) {
-        // Headers can come from two locations:
-        final HttpMultiValueMap headers = new HttpMultiValueMap();
-        // 1. @RequestAttribute annotation where a static list of headers is supplied
-        HttpMultiValueMap headersFromMethodAnnotation = requestMetaData.getHeaders();
-        headers.addAll(headersFromMethodAnnotation);
-
-        // 2. Method arguments which can be either a single header or multiple headers as a map
-        List<ParameterInfo> singleValueHeaders = typeToParam.get(ParameterMetaData.Type.HTTP_HEADER);
-        singleValueHeaders.forEach(parameterInfo -> {
-            final NamedParameterMetaData header = (NamedParameterMetaData) parameterInfo.getParameterMetaData();
-            final Object rawValue = parameterInfo.getValue();
-            if (rawValue != null) { // we will only add the header if a value is provided
-                headers.add(header.getName(), rawValue.toString());
-            }
-        });
-
-        final List<ParameterInfo> multipleHeaderMaps = typeToParam.get(ParameterMetaData.Type.HTTP_HEADER_MAP);
-        multipleHeaderMaps.forEach(parameterInfo -> {
-            final Map<?, ?> map = (Map<?, ?>) parameterInfo.getValue();
-            if (map != null) {
-                map.forEach((key, value) -> {
-                    if (key != null && value != null) { // we will only add header if a name and value is present
-                        final String headerName = key.toString();
-                        if (value instanceof Collection<?> headerValueCollection) {
-                            // header name is mapped to a collection so we have multiple header values
-                            headerValueCollection.stream()
-                                    .filter(Objects::nonNull)
-                                    .forEach(headerValue -> headers.add(headerName, headerValue.toString()));
-                        } else {
-                            headers.add(headerName, value.toString());
-                        }
-                    }
-                });
-            }
-        });
-
-        return headers;
-    }
-
-    /**
      * Extracts the named parameters(headers or query params) from a request.
-     *
-     * @param requestMetaData
-     * @param typeToParam
-     * @param paramType
-     * @return
      */
     private HttpMultiValueMap getNamedParams(ClientMethodMetaData requestMetaData, Map<ParameterMetaData.Type,
             List<ParameterInfo>> typeToParam, ParameterMetaData.Type paramType) {
@@ -188,49 +152,63 @@ public class ClientInvocationHandler implements InvocationHandler {
                 requestMetaData.getQueryParams();
         namedParams.addAll(valuesFromMethodAnnotation);
 
-        // 2. Method arguments which can be either a single header or multiple namedParams as a map
-        List<ParameterInfo> singleValues  = typeToParam.get(paramType);
-        singleValues.forEach(parameterInfo -> {
-            final NamedParameterMetaData header = (NamedParameterMetaData) parameterInfo.getParameterMetaData();
-            final Object rawValue = parameterInfo.getValue();
-            if (rawValue != null) { // we will only add the header if a value is provided
-                namedParams.add(header.getName(), rawValue.toString());
-            }
-        });
+        // 2. Method arguments which can be either a single named value[e.g. getValue(@Header("Authorization") String token)]
+        // or multiple namedParams as a map [e.g. getValue(@Header Map<String, String> headers)]
 
+        // handle single nameParam values
+        List<ParameterInfo> singleValues  = typeToParam.get(paramType);
+        if (Utils.isNotEmpty(singleValues)) {
+            singleValues.forEach(parameterInfo -> {
+                final NamedParameterMetaData header = (NamedParameterMetaData) parameterInfo.getParameterMetaData();
+                final Object rawValue = parameterInfo.getValue();
+                if (rawValue != null) { // we will only add the named param if a value is provided
+                    namedParams.add(header.getName(), rawValue.toString());
+                }
+            });
+        }
+
+        // handle get bulk namedParams as a map
+        // note that the map can be <String, String> OR <String, Collection<?>>
         final ParameterMetaData.Type mapType = isHeaders ? ParameterMetaData.Type.HTTP_HEADER_MAP :
                 ParameterMetaData.Type.QUERY_PARAM_MAP;
         final List<ParameterInfo> multipleHeaderMaps = typeToParam.get(mapType);
-        multipleHeaderMaps.forEach(parameterInfo -> {
-            final Map<?, ?> map = (Map<?, ?>) parameterInfo.getValue();
-            if (map != null) {
-                map.forEach((key, value) -> {
-                    if (key != null && value != null) { // we will only add header if a name and value is present
-                        final String headerName = key.toString();
-                        if (value instanceof Collection<?> headerValueCollection) {
-                            // header name is mapped to a collection so we have multiple header values
-                            headerValueCollection.stream()
-                                    .filter(Objects::nonNull)
-                                    .forEach(headerValue -> namedParams.add(headerName, headerValue.toString()));
-                        } else {
-                            namedParams.add(headerName, value.toString());
+        if (Utils.isNotEmpty(multipleHeaderMaps)) {
+            multipleHeaderMaps.forEach(parameterInfo -> {
+                final Map<?, ?> map = (Map<?, ?>) parameterInfo.getValue();
+                if (map != null) {
+                    map.forEach((key, value) -> {
+                        if (key != null && value != null) { // we will only add header if a name and value is present
+                            final String headerName = key.toString();
+                            if (value instanceof Collection<?> headerValueCollection) {
+                                // header name is mapped to a collection so we have multiple header values
+                                headerValueCollection.stream()
+                                        .filter(Objects::nonNull)
+                                        .forEach(headerValue -> namedParams.add(headerName, headerValue.toString()));
+                            } else {
+                                namedParams.add(headerName, value.toString());
+                            }
                         }
-                    }
-                });
-            }
-        });
-
+                    });
+                }
+            });
+        }
         return namedParams;
     }
 
-
+    private Object getRequestBody(ClientMethodMetaData requestMetaData, Map<ParameterMetaData.Type, List<ParameterInfo>> typeToParam) {
+        final List<ParameterInfo> requestBodyArgList = typeToParam.get(ParameterMetaData.Type.REQUEST_BODY);
+        return Optional.ofNullable(requestBodyArgList)
+                .filter(Utils::isNotEmpty)
+                .map(argList -> argList.get(0).getValue())
+                .orElse(null);
+    }
 
     /**
      * If the supplied path is a path fragment, concatenate with rootUrl. Otherwise,
      * return the path as the full url
      */
     private String joinUrl(String rootUrl, String pathFragmentOrFullUrl) {
-        String fullUrl = pathFragmentOrFullUrl;
+        String fullUrl = Utils.isEmpty(pathFragmentOrFullUrl) ? rootUrl : pathFragmentOrFullUrl;
         if (Utils.isPathFragment(pathFragmentOrFullUrl)) {
             fullUrl = rootUrl + (pathFragmentOrFullUrl.startsWith("/") ? pathFragmentOrFullUrl :
                     "/" + pathFragmentOrFullUrl);
@@ -239,8 +217,25 @@ public class ClientInvocationHandler implements InvocationHandler {
     }
 
     public static void main(String... args) {
-        Map<String, List<String>> headers = new HashMap<>();
-        headers.put(null, null);
-        System.out.println(headers);
+        Request request = Request.builder().url("url").build();
+        List<RequestInterceptor> requestInterceptors = List.of(
+                (r, c) -> {
+                    System.out.println("Inside First. Current URL: " + r.getUrl());
+                    r.setUrl(r.getUrl() + "1"); return r;
+                    },
+                (r, c) -> {
+                    System.out.println("Inside Second. Current URL: " + r.getUrl());
+                    r.setUrl(r.getUrl() + "2"); return r;
+                    },
+                (r, c) -> {
+                    System.out.println("Inside Third. Current URL: " + r.getUrl());
+                    r.setUrl(r.getUrl() + "3"); return r;
+                }
+        );
+        Request r = requestInterceptors.stream().reduce(request,
+                (currentRequest, executor) -> executor.process(currentRequest, null),
+                (currentRequest, updatedRequest) -> updatedRequest);
+        System.out.println(r);
     }
+
 }

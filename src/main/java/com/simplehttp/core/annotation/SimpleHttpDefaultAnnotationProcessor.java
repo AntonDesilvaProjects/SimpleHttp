@@ -1,16 +1,14 @@
-package com.simplehttp.core.client;
+package com.simplehttp.core.annotation;
 
 import com.simplehttp.core.Constants;
-import com.simplehttp.core.HttpMultiValueMap;
+import com.simplehttp.core.client.http.HttpMultiValueMap;
 import com.simplehttp.core.annotation.client.SimpleHttpClient;
 import com.simplehttp.core.annotation.http.*;
 import com.simplehttp.core.client.model.ClientMetadata;
 import com.simplehttp.core.client.model.ClientMethodMetaData;
 import com.simplehttp.core.client.model.ParameterMetaData;
 import com.simplehttp.core.client.model.NamedParameterMetaData;
-import com.simplehttp.utils.Utils;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.security.InvalidParameterException;
@@ -19,39 +17,34 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Processes annotations on the target client class.
+ * Default annotation processor for a target SimpleHttp client class
  */
-public class AnnotationProcessor {
+public class SimpleHttpDefaultAnnotationProcessor implements AnnotationProcessor {
 
     /**
-     * Generates a metadata
-     *
-     * @param target annotated class to process
-     * @return
+     * @inheritDoc
      */
     public ClientMetadata extractClientMetadata(final Class<?> target) {
         final ClientMetadata.ClientMetadataBuilder clientMetadataBuilder = ClientMetadata.builder();
-        // extract root level annotations
-        final Annotation[] annotations = target.getAnnotations();
         // any simple http client must have SimpleHttpClient.class annotation
         if (!target.isAnnotationPresent(SimpleHttpClient.class)) {
             throw new IllegalArgumentException("Target class not annotated for Simple HTTP client");
         }
+        // extract root level client meta data
         final SimpleHttpClient simpleHttpClientAnnotation = target.getAnnotation(SimpleHttpClient.class);
-        final String name = Optional.ofNullable(simpleHttpClientAnnotation.name())
-                .orElse(target.getName());
+        final String name = Constants.DEFAULT_STRING_VALUE.equals(simpleHttpClientAnnotation.name()) ?
+                target.getName() : simpleHttpClientAnnotation.name();
         final String host = simpleHttpClientAnnotation.host();
         clientMetadataBuilder.name(name);
         clientMetadataBuilder.host(host);
 
         // handle individual methods
         final Map<String, ClientMethodMetaData> methodNameToRequestMetadata = Arrays.stream(target.getMethods())
-                .map(this::extractRequestMetadata)
+                .map(this::extractRequestMetadataFromMethod)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .collect(Collectors.toMap(methodMetaData -> methodMetaData.getMethod().getName(), Function.identity()));
         clientMetadataBuilder.methodNameToRequestTemplate(methodNameToRequestMetadata);
-
 
         // run validations
         ClientMetadata clientMetadata = clientMetadataBuilder.build();
@@ -61,39 +54,42 @@ public class AnnotationProcessor {
     }
 
     /**
-     * A method annotated with RequestAttribute annotation in the target class represents an HTTP call. Extract metadata
-     * from the supplied method including HTTP method, URL, headers, query params, etc.
+     * A method annotated with <code>@RequestAttribute</code> annotation in the target class represents an HTTP call.
+     * Extract HTTP related metadata from the supplied method including HTTP method, URL, headers, query params, etc.
      *
      * @param method to extract HTTP request information
-     * @return
+     * @return an ClientMethodMetaData object with extracted metadata from the method; empty if method not annotated for
+     * http calls
      */
-    private Optional<ClientMethodMetaData> extractRequestMetadata(final Method method) {
+    private Optional<ClientMethodMetaData> extractRequestMetadataFromMethod(final Method method) {
+        // the target class may have methods which are not annotated for making HTTP calls - ignore those
         if (!method.isAnnotationPresent(RequestAttribute.class)) {
             return Optional.empty();
         }
 
         final RequestAttribute requestAttributes = method.getAnnotation(RequestAttribute.class);
 
+        // extract metadata from the root level annotation
         final ClientMethodMetaData.ClientMethodMetaDataBuilder builder = ClientMethodMetaData.builder();
         builder.method(method);
         builder.httpMethod(requestAttributes.httpMethod());
-
         // value and url are aliases - give preference to URL if defined
         builder.url(!Constants.DEFAULT_STRING_VALUE.equals(requestAttributes.url()) ? requestAttributes.url() :
                 requestAttributes.value());
-
         // get the headers
         builder.headers(extractNameValuePairs(method, requestAttributes.headers()));
-
         // get the query parameter pairs
         builder.queryParams(extractNameValuePairs(method, requestAttributes.queryParams()));
 
-        // get the parameter list
+        // parameters of the method can have additional metadata including headers, query params, request body, etc
+        // go through all parameters of the method and extract any relevant metadata
         final List<ParameterMetaData> parameterMetaDataList = Arrays.stream(method.getParameters())
                 .map(parameter -> extractParameterMetaData(method, parameter))
                 .collect(Collectors.toList());
         builder.parameterMetaDataList(parameterMetaDataList);
-        builder.responseType(method.getReturnType());
+
+        // get the return type
+        builder.responseType(method.getGenericReturnType());
 
         return Optional.of(builder.build());
     }
@@ -133,7 +129,7 @@ public class AnnotationProcessor {
                     namedArgumentName = queryParam.value();
                 }
                 if (Constants.DEFAULT_STRING_VALUE.equals(namedArgumentName)) {
-                    throw new IllegalArgumentException(String.format("Unnamed %s at %s#%s",
+                    throw new IllegalArgumentException(String.format("Unnamed %s at parameter %s#%s",
                             isHeader ? "header" : "query parameter", method.getName(), parameter.getName()));
                 }
                 namedArgument.setName(namedArgumentName);
@@ -162,7 +158,7 @@ public class AnnotationProcessor {
             for (String pair : nameValuePairs) {
                 String[] splitPair = pair.split("=", 2);
                 if (splitPair.length != 2) {
-                    throw new InvalidParameterException(String.format("Invalid name-value pair for method '%s': '%s'",
+                    throw new InvalidParameterException(String.format("Invalid name-value pair at method %s: '%s'",
                             method.getName(), pair));
                 }
                 nameToValuesMap.add(splitPair[0], splitPair[1]);
@@ -172,37 +168,6 @@ public class AnnotationProcessor {
     }
 
     private void validateClientMetadata(ClientMetadata clientMetadata) {
-        // ensure that named parameters(headers/query params) have non-null names
-    }
-
-    public static void main(String... args) {
-//        HashMap<String, String> map = new HashMap<String, String>();
-//        map.put("a", "b");
-//        map.put("C", "D");
-//
-//        Map<String, List<ClientMetadata>> map2 = new LinkedHashMap<>();
-//        map2.put("truck", List.of(ClientMetadata.builder().build()));
-//
-//        Object obj = map2;
-//
-//        System.out.println("Is Map: " + (obj instanceof Map));
-//        Map someMap = (Map) obj;
-//        someMap.forEach((k, y) ->
-//        {
-//            if (y instanceof List) {
-//                List items = (List) y;
-//                System.out.println("Key: " + k);
-//                items.forEach(val -> System.out.println(val));
-//            } else {
-//                System.out.println(k + ", " + y);
-//            }
-//        });
-
-        Set<String> s = Set.of("this", "is", "random++");
-        for (String x: s) {
-            System.out.println(x);
-        }
-
-
+        // TODO: implement any necessary validations here
     }
 }

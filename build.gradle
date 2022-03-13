@@ -14,8 +14,10 @@ repositories {
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web:2.6.3'
-}
+    implementation 'org.jetbrains:annotations:22.0.0'
 
-test {
-    useJUnitPlatform()
+
+    testImplementation 'org.assertj:assertj-core:3.22.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation "com.github.tomakehurst:wiremock-jre8-standalone:2.32.0"
 }

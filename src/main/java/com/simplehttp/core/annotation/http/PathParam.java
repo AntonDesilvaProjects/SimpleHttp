@@ -7,10 +7,13 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Used to represent parameters in the URL path. Ex:
- *  GET /employee/{id}/status
- *
- * `id` is a path parameter
+ * Parameter level annotation used to mark URL path parameters. Ex:
+ * <pre>
+ *     {@code
+ *      @RequestAttribute("/{id}")
+ *      Person get(@PathParam("id") String id);
+ *     }
+ * </pre>
  */
 @Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.RUNTIME)

@@ -1,11 +1,13 @@
 package com.simplehttp.core.client.model;
 
-import com.simplehttp.core.HttpMultiValueMap;
+import com.simplehttp.core.client.http.HttpMultiValueMap;
 import com.simplehttp.core.client.http.HttpMethod;
 import lombok.Builder;
 import lombok.Data;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.util.List;
 
 @Data
 @Builder
@@ -15,7 +17,8 @@ public class Request {
     private HttpMultiValueMap headers;
     private HttpMultiValueMap queryParams;
     private Object body;
-    private Class<?> responseType;
+    private Type responseType;
 
     private Method method;
+    private List<ParameterInfo> parameters;
 }

@@ -1,7 +1,11 @@
-import com.simplehttp.core.client.AnnotationProcessor;
+import com.simplehttp.core.annotation.client.SimpleHttpClient;
+import com.simplehttp.core.annotation.http.PathParam;
+import com.simplehttp.core.annotation.http.RequestAttribute;
+import com.simplehttp.core.annotation.http.RequestBody;
 import com.simplehttp.core.client.ClientBuilder;
-import com.simplehttp.core.client.model.ClientMetadata;
-import org.springframework.web.bind.annotation.PostMapping;
+import com.simplehttp.core.client.http.HttpMethod;
+import com.simplehttp.core.exception.SimpleHttpException;
+import com.simplehttp.provider.spring.Person;
 import org.springframework.web.client.RestTemplate;
 
 import java.lang.reflect.InvocationHandler;
@@ -17,23 +21,38 @@ import java.util.Map;
  * */
 public class Runner {
     public static void main(String... args) {
-//        TestClient client = new TestClientImpl();
-//        String result = client.getMessage(2);
-//        System.out.println(result);
+        ClientBuilder clientBuilder = new ClientBuilder();
+        PeopleRepository peopleRepository = clientBuilder
+                .buildClient(PeopleRepository.class);
 
-//        TestClient client = getClient(TestClient.class);
-//        String result = client.getMessage(2, null);
-//        System.out.println(result);
+        Person p1 = new Person();
+        p1.setName("Testy");
+        p1.setAge(30);
+        p1.setCity("San Francisco");
+        p1.setAttributes(Map.of("fav_food", List.of("pizza", "soda", "potatoe chips")));
+        Person created = peopleRepository.create(p1);
+        System.out.println(created);
 
-//        AnnotationProcessor processor = new AnnotationProcessor();
-//        ClientMetadata k = processor.extractClientMetadata(TestClient.class);
-//        System.out.println(k);
-        ClientBuilder clientBuilder = new ClientBuilder(null, new AnnotationProcessor());
-        TestClient testClient = clientBuilder.buildClient(TestClient.class);
-        testClient.testAllV2("token", Map.of("header_1", "header_1_value", "Authorization", "Bearer some_token"), "some_page",
-                Map.of("query_1", "query_1_value"), "234353", List.of("this", "is", "payload"),
-                "/partial");
     }
+
+    @SimpleHttpClient(host = "https://crudcrud.com/api/1295f14b76a74ec08e94eda42c7c80a0/person")
+    interface PeopleRepository {
+        @RequestAttribute(httpMethod = HttpMethod.POST, headers = {"Content-Type=application/json"})
+        Person create(@RequestBody Person person);
+
+        @RequestAttribute("/{id}")
+        Person get(@PathParam("id") String id);
+
+        @RequestAttribute
+        List<Person> list();
+
+        @RequestAttribute("/{id}")
+        Person update(@PathParam("id") String id, @RequestBody Person person);
+
+        @RequestAttribute("/{id}")
+        void delete(String id);
+    }
+
 
     public static <T> T getClient(Class<T> clazz) {
         return (T) Proxy.newProxyInstance(HttpClientHandler.class.getClassLoader(),

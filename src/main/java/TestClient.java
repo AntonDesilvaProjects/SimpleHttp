@@ -1,6 +1,7 @@
 import com.simplehttp.core.annotation.client.SimpleHttpClient;
 import com.simplehttp.core.annotation.http.*;
 import com.simplehttp.core.client.http.HttpMethod;
+import com.simplehttp.provider.spring.Person;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,4 +33,10 @@ public interface  TestClient {
                      @QueryParam Map<String, String> dynamicQueryParams,
                      @PathParam("accountId") String accountId,
                      @RequestBody List<String> payload, @Url String s);
+
+
+    @RequestAttribute(value = "https://webhook.site/7faad5d8-bb2e-400b-a79b-d7d61a2d16a4", httpMethod = HttpMethod.POST)
+    void getPeople(@RequestBody Person person);
+
+
 }

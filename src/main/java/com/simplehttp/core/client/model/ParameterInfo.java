@@ -4,7 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 
 /**
- * Class to combine parameter metadata with argument information.
+ * Composite object to store a parameter's metadata alongside actual argument value.
  */
 @Data
 @Builder(toBuilder = true)

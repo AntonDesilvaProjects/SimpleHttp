@@ -1,6 +1,10 @@
 package com.simplehttp.utils;
 
+import com.simplehttp.core.TypeReference;
+
+import java.lang.reflect.Type;
 import java.util.Collection;
+import java.util.Optional;
 
 public class Utils {
     public static boolean isPathFragment(final String url) {
@@ -29,5 +33,9 @@ public class Utils {
 
     public static boolean isNotEmpty(Collection<?> collection) {
         return !isEmpty(collection);
+    }
+
+    public static String stringify(Object s) {
+        return Optional.ofNullable(s).map(Object::toString).orElse(null);
     }
 }
