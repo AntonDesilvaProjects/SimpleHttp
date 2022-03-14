@@ -27,6 +27,7 @@ A basic configuration example:
  }
 ```
 Supports all standard HTTP methods, custom headers, query params, etc.
+
 2. Use the `SimpleHTTP` client builder to get a client instance:
 
 ```java
